@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": false,
   "description": "AI-powered browser automation platform with Playwright, Next.js, and TypeScript. Control real browsers via REST API from any LLM or CLI.",
-  "keywords": ["browser-automation", "playwright", "ai-agent", "web-scraping", "headless-browser", "ai-agent", "nextjs", "typescript", "rest-api", "computer-vision", "llm"],
+  "keywords": ["browser-automation", "playwright", "ai-agent", "web-scraping", "headless-browser", "nextjs", "typescript", "rest-api", "computer-vision", "llm"],
   "author": "AgentBrowser Contributors",
   "license": "MIT",
   "repository": {
