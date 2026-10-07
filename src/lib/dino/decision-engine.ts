@@ -44,6 +44,13 @@ export class RecoveryDecisionEngine {
     );
 
     if (next) {
+      if (next.requiresOwnerInput) {
+        return {
+          type: "ask_owner",
+          blocker: "unknown_owner_input",
+          reason: `The "${next.label}" path requires owner-controlled input.`,
+        };
+      }
       return { type: "try_recovery", option: next };
     }
 
