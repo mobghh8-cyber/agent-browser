@@ -5,6 +5,9 @@ import { createTaskState, type DinoTaskState } from "./task-state";
 import { RecoveryDecisionEngine } from "./decision-engine";
 import { detectRecoveryState } from "./recovery/detector";
 import { createEscalation } from "./recovery/escalation";
+import recoveryPathExecutor from "./recovery/executor";
+
+const MAX_STEPS = 8;
 
 export interface DinoRunResult {
   state: DinoTaskState;
@@ -49,35 +52,72 @@ export class DinoRecoveryAgent {
       return { state, message: navigation.error || "Navigation failed." };
     }
 
-    const observation = await this.observe(sessionId);
-    state.lastObservation = observation.summary;
+    for (let step = 0; step < MAX_STEPS; step += 1) {
+      const observation = await this.observe(sessionId);
+      state.lastObservation = observation.summary;
 
-    const decision = this.decisions.decide(state, observation);
+      const decision = this.decisions.decide(state, observation);
 
-    if (decision.type === "ask_owner") {
-      state.status = "waiting_for_owner";
-      state.blockers.push(decision.blocker);
-      state.ownerInputRequired = true;
-      return {
-        state,
-        message: createEscalation(decision.blocker).message,
-      };
-    }
+      if (decision.type === "ask_owner") {
+        state.status = "waiting_for_owner";
+        if (!state.blockers.includes(decision.blocker)) {
+          state.blockers.push(decision.blocker);
+        }
+        state.ownerInputRequired = true;
+        return {
+          state,
+          message: createEscalation(decision.blocker).message,
+        };
+      }
 
-    if (decision.type === "complete") {
-      state.status = "completed";
+      if (decision.type === "complete") {
+        state.status = "completed";
+        return { state, message: decision.reason };
+      }
+
+      if (decision.type === "try_recovery") {
+        state.status = "recovering";
+        const startedAt = new Date().toISOString();
+
+        const execution = await recoveryPathExecutor.execute(
+          sessionId,
+          decision.option,
+          accountHint,
+        );
+
+        state.attempts.push({
+          path: decision.option.path,
+          startedAt,
+          completedAt: new Date().toISOString(),
+          result: execution.success ? "success" : "failed",
+          note: execution.message,
+        });
+
+        if (!execution.success) {
+          continue;
+        }
+
+        continue;
+      }
+
+      if (decision.type === "continue") {
+        state.status = "observing";
+        await actionExecutor.execute(sessionId, {
+          action: "wait",
+          value: "500",
+        });
+        continue;
+      }
+
+      state.status = "failed";
       return { state, message: decision.reason };
     }
 
-    if (decision.type === "try_recovery") {
-      state.status = "recovering";
-      return {
-        state,
-        message: `Recovery path selected: ${decision.option.label}. The browser action layer can now execute the site's normal recovery flow.`,
-      };
-    }
-
-    return { state, message: decision.reason };
+    state.status = "failed";
+    return {
+      state,
+      message: `Recovery stopped after ${MAX_STEPS} bounded steps to prevent loops.`,
+    };
   }
 }
 
