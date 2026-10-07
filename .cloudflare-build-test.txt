@@ -1,0 +1,2 @@
+Cloudflare Workers Builds connection test.
+This file is temporary and can be removed after the build trigger is confirmed.
